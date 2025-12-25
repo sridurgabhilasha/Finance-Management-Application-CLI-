@@ -40,6 +40,21 @@ def initialize_database():
         )
     ''')
     
+    # Create budgets table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            month INTEGER NOT NULL,
+            year INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (category_id) REFERENCES categories (id),
+            UNIQUE(user_id, category_id, month, year)
+        )
+    ''')
+    
     # Insert default categories
     default_categories = ['Food', 'Rent', 'Salary', 'Entertainment', 'Transportation', 'Utilities', 'Healthcare', 'Other']
     for cat in default_categories:

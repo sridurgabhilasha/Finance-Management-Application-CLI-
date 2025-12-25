@@ -104,3 +104,125 @@ def get_categories():
     categories = [row[0] for row in cursor.fetchall()]
     conn.close()
     return categories
+
+def get_summary(user_id):
+    """Get financial summary for a user."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Total income
+    cursor.execute('SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = ?', (user_id, 'income'))
+    total_income = cursor.fetchone()[0] or 0
+    
+    # Total expenses
+    cursor.execute('SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = ?', (user_id, 'expense'))
+    total_expenses = cursor.fetchone()[0] or 0
+    
+    balance = total_income - total_expenses
+    
+    conn.close()
+    return {
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'balance': balance
+    }
+
+def get_monthly_report(user_id, year, month):
+    """Get monthly financial report."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Get transactions for the specified month
+    cursor.execute('''
+        SELECT t.type, c.name, SUM(t.amount) as total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.user_id = ? 
+        AND strftime('%Y', t.date) = ? 
+        AND strftime('%m', t.date) = ?
+        GROUP BY t.type, c.name
+        ORDER BY t.type, total DESC
+    ''', (user_id, str(year), f'{month:02d}'))
+    
+    category_breakdown = cursor.fetchall()
+    
+    # Get total income
+    cursor.execute('''
+        SELECT SUM(amount) FROM transactions 
+        WHERE user_id = ? AND type = 'income'
+        AND strftime('%Y', date) = ? 
+        AND strftime('%m', date) = ?
+    ''', (user_id, str(year), f'{month:02d}'))
+    total_income = cursor.fetchone()[0] or 0
+    
+    # Get total expenses
+    cursor.execute('''
+        SELECT SUM(amount) FROM transactions 
+        WHERE user_id = ? AND type = 'expense'
+        AND strftime('%Y', date) = ? 
+        AND strftime('%m', date) = ?
+    ''', (user_id, str(year), f'{month:02d}'))
+    total_expenses = cursor.fetchone()[0] or 0
+    
+    conn.close()
+    
+    return {
+        'category_breakdown': category_breakdown,
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'savings': total_income - total_expenses
+    }
+
+def get_yearly_report(user_id, year):
+    """Get yearly financial report."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Get transactions by month
+    cursor.execute('''
+        SELECT strftime('%m', t.date) as month, t.type, SUM(t.amount) as total
+        FROM transactions t
+        WHERE t.user_id = ? AND strftime('%Y', t.date) = ?
+        GROUP BY month, t.type
+        ORDER BY month
+    ''', (user_id, str(year)))
+    
+    monthly_data = cursor.fetchall()
+    
+    # Get category breakdown
+    cursor.execute('''
+        SELECT t.type, c.name, SUM(t.amount) as total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.user_id = ? AND strftime('%Y', t.date) = ?
+        GROUP BY t.type, c.name
+        ORDER BY t.type, total DESC
+    ''', (user_id, str(year)))
+    
+    category_breakdown = cursor.fetchall()
+    
+    # Get total income
+    cursor.execute('''
+        SELECT SUM(amount) FROM transactions 
+        WHERE user_id = ? AND type = 'income'
+        AND strftime('%Y', date) = ?
+    ''', (user_id, str(year)))
+    total_income = cursor.fetchone()[0] or 0
+    
+    # Get total expenses
+    cursor.execute('''
+        SELECT SUM(amount) FROM transactions 
+        WHERE user_id = ? AND type = 'expense'
+        AND strftime('%Y', date) = ?
+    ''', (user_id, str(year)))
+    total_expenses = cursor.fetchone()[0] or 0
+    
+    conn.close()
+    
+    return {
+        'monthly_data': monthly_data,
+        'category_breakdown': category_breakdown,
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'savings': total_income - total_expenses
+    }
